@@ -1,9 +1,10 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 import { AppState, CleaningLog, Transaction, TransactionType, Unit, UnitType, DashboardSummary } from '../types';
-import { INITIAL_UNITS, INITIAL_CLEANING_QUEUE, DEFAULT_PASSWORD, STORAGE_KEY } from '../constants';
+import { INITIAL_UNITS, INITIAL_CLEANING_QUEUE, DEFAULT_PASSWORD } from '../constants';
 
-// --- Firebase Configuration ---
+// --- Firebase Yapılandırması ---
+// Bu bilgiler Vercel'e girdiğin Environment Variables'tan çekilir
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -15,12 +16,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+// Veriler Firebase'de bu isimle bir dökümanda saklanacak
 const DOC_REF = doc(db, "apartman_verileri", "ana_durum");
 
-// --- Helper for IDs ---
+// --- Kimlik Oluşturucu ---
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
-// --- State Management ---
+// --- Uygulama Durumu (State) ---
 let state: AppState = {
     units: INITIAL_UNITS,
     transactions: [],
@@ -29,7 +31,7 @@ let state: AppState = {
     password: DEFAULT_PASSWORD
 };
 
-// Verileri Firebase'e Kaydet
+// Verileri Firebase'e Kaydetme Fonksiyonu
 const saveToFirebase = async () => {
     try {
         await setDoc(DOC_REF, state);
@@ -38,18 +40,22 @@ const saveToFirebase = async () => {
     }
 };
 
-// Uygulama açıldığında verileri Firebase'den çek
+// Uygulama açıldığında verileri Firebase'den çeken ana fonksiyon
 export const syncWithFirebase = async () => {
-    const docSnap = await getDoc(DOC_REF);
-    if (docSnap.exists()) {
-        state = docSnap.data() as AppState;
-    } else {
-        // Eğer veritabanı boşsa başlangıç verilerini yükle
-        await saveToFirebase();
+    try {
+        const docSnap = await getDoc(DOC_REF);
+        if (docSnap.exists()) {
+            state = docSnap.data() as AppState;
+        } else {
+            // Eğer veritabanı boşsa (ilk kurulum), başlangıç verilerini yükle
+            await saveToFirebase();
+        }
+    } catch (e) {
+        console.error("Firebase senkronizasyon hatası:", e);
     }
 };
 
-// --- Public Accessors ---
+// --- Veri Erişim Fonksiyonları ---
 
 export const checkPassword = (input: string): boolean => input === state.password;
 
@@ -99,7 +105,7 @@ export const getDashboardSummary = (month: string): DashboardSummary => {
     return { totalExpense, totalIncome, totalDebt, geoTotal };
 };
 
-// --- Action Logic ---
+// --- İşlem Mantığı ---
 
 export const addPayment = async (unitId: string, date: string, amount: number, description: string) => {
     const newTrans: Transaction = {
